@@ -22,7 +22,8 @@ export const useAuth = () => {
           setAppUser({ 
             uid: user.uid, 
             role: snap.data().role,
-            email: user.email || undefined // email 필드 추가!
+            // 1. users 컬렉션에서 email 필드가 있으면 우선 사용
+            email: snap.data().email || user.email || undefined
           });
         } else {
           await signOut(auth);
@@ -35,6 +36,7 @@ export const useAuth = () => {
     });
     return unsub;
   }, []);
+  
 
   const handleLogin = async (email: string, pw: string) => {
     try {

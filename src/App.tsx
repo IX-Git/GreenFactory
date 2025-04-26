@@ -176,6 +176,7 @@ const App: React.FC = () => {
                   orderDate={format(selectedOrder.timestamp, 'yyyy-MM-dd')}
                   orderStatus={selectedOrder.orderStatus ?? '완료'}
                   changeLogs={selectedOrder.changeLogs ?? []}
+                  appUser={appUser}
                   items={selectedOrder.items.map(i => ({
                     name: i.name,
                     quantity: i.quantity,

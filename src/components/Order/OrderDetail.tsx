@@ -55,6 +55,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({
   // 결제수단 변경
   const handleChangePaymentMethod = async (newMethod: string) => {
     if (!orderId) return;
+    console.log('appUser:', appUser); // 디버깅용
     await updateDoc(doc(db, 'orders', orderId), {
       paymentMethod: newMethod,
       changeLogs: arrayUnion({
