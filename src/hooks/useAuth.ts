@@ -1,4 +1,4 @@
-// hooks/useAuth.ts
+// src/hooks/useAuth.ts
 import { useState, useEffect } from 'react';
 import { 
   signInWithEmailAndPassword, 
@@ -19,7 +19,11 @@ export const useAuth = () => {
       if (user) {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
-          setAppUser({ uid: user.uid, role: snap.data().role });
+          setAppUser({ 
+            uid: user.uid, 
+            role: snap.data().role,
+            email: user.email || undefined // email 필드 추가!
+          });
         } else {
           await signOut(auth);
           setAppUser(null);

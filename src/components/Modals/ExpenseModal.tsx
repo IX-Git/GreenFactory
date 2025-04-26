@@ -3,11 +3,11 @@ import React from 'react';
 import { X } from 'lucide-react';
 
 interface ExpenseModalProps {
-  expenseAmount: string;  // 추가된 속성
+  expenseAmount: string;
   setExpenseAmount: (value: string | ((prev: string) => string)) => void;
-  expenseDescription: string;  // 추가된 속성
+  expenseDescription: string;
   setExpenseDescription: (value: string) => void;
-  onApply: () => void;
+  onApply: (amount: string, description: string) => void;
   onCancel: () => void;
 }
 
@@ -17,7 +17,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   expenseDescription,
   setExpenseDescription,
   onApply,
-  onCancel
+  onCancel,
 }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -31,7 +31,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <X size={20} />
           </button>
         </div>
-        
+
         <div className="mb-4">
           <input
             type="text"
@@ -41,7 +41,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        
+
         <div className="mb-6">
           <div className="flex items-center border border-gray-300 rounded-lg p-2 mb-4">
             <span className="text-lg font-medium mr-2">₩</span>
@@ -52,7 +52,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               className="flex-1 text-right text-2xl font-bold outline-none"
             />
           </div>
-          
+
           <div className="grid grid-cols-3 gap-2">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(num => (
               <button
@@ -77,7 +77,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             </button>
           </div>
         </div>
-        
+
         <div className="flex justify-end space-x-2">
           <button
             onClick={onCancel}
@@ -93,7 +93,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 ? 'bg-blue-500 text-white hover:bg-blue-600'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
-            onClick={onApply}
+            onClick={() => onApply(expenseAmount, expenseDescription)}
             disabled={
               !expenseAmount ||
               parseInt(expenseAmount) <= 0 ||

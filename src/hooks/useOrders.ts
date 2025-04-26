@@ -1,20 +1,23 @@
-// hooks/useOrders.ts
+// src/hooks/useOrders.ts
 import { useState, useEffect, useMemo } from 'react';
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  serverTimestamp, 
-  increment 
-} from "firebase/firestore";
-import { db } from "../firebase";
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  doc,
+  serverTimestamp,
+  increment
+} from 'firebase/firestore';
+import { db } from '../firebase';
 import { Order, MenuItem, Expense } from '../types';
 
-export const useOrders = (menuItems: MenuItem[], showToastMessage: (message: string) => void) => {
+export const useOrders = (
+  menuItems: MenuItem[],
+  showToastMessage: (message: string) => void
+) => {
   const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<MenuItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -28,28 +31,41 @@ export const useOrders = (menuItems: MenuItem[], showToastMessage: (message: str
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<number | null>(null);
 
+  // 실시간 Firestore 구독 (onSnapshot)
   useEffect(() => {
-    const q = query(collection(db, "orders"), orderBy("timestamp", "desc"));
-    return onSnapshot(q, snap => {
-      setCompletedOrders(snap.docs.map(d => {
-        const data = d.data();
+    const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const orders: Order[] = snapshot.docs.map(doc => {
+        const data = doc.data();
         return {
-          docId: d.id,
-          id: data.id ?? Date.now(),
-          items: data.items,
+          id: doc.id, // Firestore 문서 id만 사용!
+          docId: doc.id,
           totalAmount: data.totalAmount,
-          discount: data.discount,
-          finalAmount: data.finalAmount,
           paymentMethod: data.paymentMethod,
-          timestamp: data.timestamp.toDate(),
+          paymentTime: data.paymentTime || '',
+          orderNumber: data.orderNumber || 0,
+          orderDate: data.orderDate || '',
+          orderStatus: data.orderStatus ?? '완료',
+          items: data.items || [],
+          discount: data.discount || 0,
+          finalAmount: data.finalAmount,
+          changeLogs: data.changeLogs || [],
+          timestamp: data.timestamp
+            ? (typeof data.timestamp.toDate === 'function'
+                ? data.timestamp.toDate()
+                : new Date(data.timestamp))
+            : new Date(),
           isExpense: data.isExpense,
-          purchaseTotal: data.purchaseTotal
-        } as Order;
-      }));
-    }, (err) => console.error("주문 구독 에러:", err));
+          purchaseTotal: data.purchaseTotal,
+          memo: data.memo || '',
+        };
+      });
+      setCompletedOrders(orders);
+    }, err => console.error('주문 구독 에러:', err));
+
+    return () => unsubscribe();
   }, []);
 
-  // todaySales 계산
   const today = useMemo(() => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
@@ -58,11 +74,10 @@ export const useOrders = (menuItems: MenuItem[], showToastMessage: (message: str
 
   const todaySales = useMemo(() => {
     const todayOrders = completedOrders.filter(order => {
-      const orderDate = new Date(order.timestamp);
-      orderDate.setHours(0, 0, 0, 0);
-      return orderDate.getTime() === today.getTime();
+      const d = new Date(order.timestamp);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime() === today.getTime();
     });
-
     return todayOrders
       .filter(order => !order.isExpense)
       .reduce((sum, order) => sum + order.finalAmount, 0);
@@ -70,22 +85,18 @@ export const useOrders = (menuItems: MenuItem[], showToastMessage: (message: str
 
   const addToOrder = (item: MenuItem) => {
     if (expenses.length > 0) {
-      showToastMessage("지출이 등록된 상태에서는 상품을 추가할 수 없습니다");
+      showToastMessage('지출이 등록된 상태에서는 상품을 추가할 수 없습니다');
       return;
     }
-
     if (item.remainingStock <= 0) {
-      showToastMessage("재고가 부족합니다");
+      showToastMessage('재고가 부족합니다');
       return;
     }
-
     setOrderItems(prev => {
-      const existingItem = prev.find(orderItem => orderItem.id === item.id);
-      if (existingItem) {
-        return prev.map(orderItem =>
-          orderItem.id === item.id
-            ? { ...orderItem, quantity: (orderItem.quantity || 1) + 1 }
-            : orderItem
+      const existing = prev.find(i => i.id === item.id);
+      if (existing) {
+        return prev.map(i =>
+          i.id === item.id ? { ...i, quantity: (i.quantity || 1) + 1 } : i
         );
       }
       return [...prev, { ...item, quantity: 1 }];
@@ -94,37 +105,39 @@ export const useOrders = (menuItems: MenuItem[], showToastMessage: (message: str
 
   const updateQuantity = (id: number, change: number) => {
     setOrderItems(prev =>
-      prev.map(item => {
-        if (item.id === id) {
-          const newQuantity = Math.max(1, (item.quantity || 1) + change);
-          return { ...item, quantity: newQuantity };
-        }
-        return item;
-      })
+      prev.map(item =>
+        item.id === id
+          ? { ...item, quantity: Math.max(1, (item.quantity || 1) + change) }
+          : item
+      )
     );
   };
 
   const removeOrderItem = (id: number) => {
     setOrderItems(prev => prev.filter(item => item.id !== id));
-    showToastMessage("상품이 삭제되었습니다");
+    showToastMessage('상품이 삭제되었습니다');
   };
 
   const processOrder = async (paymentMethod: string) => {
     try {
       if (expenses.length > 0) {
-        const totalExpenseAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
-        const ref = await addDoc(collection(db, "orders"), {
-          items: [],
-          totalAmount: -totalExpenseAmount,
-          discount: 0,
-          finalAmount: -totalExpenseAmount,
-          paymentMethod: "지출",
-          timestamp: serverTimestamp(),
-          isExpense: true,
-        });
-        console.log("✅ 지출 문서 추가됨:", ref.id);
+        // 지출이 있는 경우, 개별 memo를 포함하여 각각 저장
+        await Promise.all(
+          expenses.map(exp =>
+            addDoc(collection(db, 'orders'), {
+              items: [],
+              totalAmount: -exp.amount,
+              discount: 0,
+              finalAmount: -exp.amount,
+              paymentMethod: '지출',
+              timestamp: serverTimestamp(),
+              isExpense: true,
+              memo: exp.description,
+            })
+          )
+        );
         setExpenses([]);
-        showToastMessage("지출이 등록되었습니다");
+        showToastMessage('지출이 등록되었습니다');
         return;
       }
 
@@ -138,7 +151,7 @@ export const useOrders = (menuItems: MenuItem[], showToastMessage: (message: str
         0
       );
 
-      const ref = await addDoc(collection(db, "orders"), {
+      const ref = await addDoc(collection(db, 'orders'), {
         items: orderItems.map(i => ({
           id: i.id,
           name: i.name,
@@ -152,32 +165,32 @@ export const useOrders = (menuItems: MenuItem[], showToastMessage: (message: str
         timestamp: serverTimestamp(),
         purchaseTotal,
       });
-      console.log("✅ 주문 문서 추가됨:", ref.id);
 
       await Promise.all(
         orderItems.map(item => {
           if (!item.docId) return Promise.resolve();
-          const itemRef = doc(db, "menuItems", item.docId);
+          const itemRef = doc(db, 'menuItems', item.docId);
           return updateDoc(itemRef, {
-            remainingStock: increment(-(item.quantity || 0))
+            remainingStock: increment(-(item.quantity || 0)),
           });
         })
       );
 
       setOrderItems([]);
       setDiscount(0);
-      showToastMessage("주문이 완료되었습니다");
+      showToastMessage('주문이 완료되었습니다');
     } catch (error) {
-      console.error("❌ processOrder 에러:", error);
-      showToastMessage("오류가 발생했습니다. 콘솔을 확인하세요.");
+      console.error('❌ processOrder 에러:', error);
+      showToastMessage('오류가 발생했습니다. 콘솔을 확인하세요.');
     }
   };
 
-  const subtotal = orderItems.reduce((sum, item) =>
-    sum + ((item.salesPrice ?? 0) * (item.quantity || 1)), 0
+  const subtotal = orderItems.reduce(
+    (sum, item) => sum + (item.salesPrice ?? 0) * (item.quantity || 1),
+    0
   );
   const total = Math.max(0, subtotal - discount);
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   return {
     completedOrders,
@@ -210,6 +223,6 @@ export const useOrders = (menuItems: MenuItem[], showToastMessage: (message: str
     subtotal,
     total,
     totalExpenses,
-    todaySales
+    todaySales,
   };
 };

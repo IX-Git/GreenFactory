@@ -4,6 +4,7 @@ export type UserRole = 'master' | 'manager' | 'casher';
 export interface AppUser {
   uid: string;
   role: UserRole;
+  email?: string;
 }
 
 export type SalesFilter = '어제' | '오늘' | '이번 주' | '이번 달' | '직접 선택';
@@ -42,7 +43,10 @@ export interface Order {
   paymentMethod: string;
   timestamp: Date;
   isExpense?: boolean;
+  orderStatus?: string;
   purchaseTotal?: number;
+  memo?: string;
+  changeLogs?: ChangeLog[];
 }
 
 export interface Expense {
@@ -56,4 +60,13 @@ export interface TooltipState {
   x: number;
   y: number;
   amount: number;
+}
+
+export interface ChangeLog {
+  type: string;
+  before?: string;
+  after?: string;
+  reason?: string;
+  updatedAt: string;
+  updatedBy: string;
 }

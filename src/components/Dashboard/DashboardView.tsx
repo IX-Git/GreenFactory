@@ -26,12 +26,16 @@ interface DashboardViewProps {
   appUser: AppUser;
   currentTime: Date;
   showToastMessage: (msg: string) => void;
+  onShowSalesDetail: () => void; 
+  onChangeDate: React.Dispatch<React.SetStateAction<Date>>; 
 }
 
 const DashboardView: React.FC<DashboardViewProps> = ({
   appUser,
   currentTime,
   showToastMessage,
+  onShowSalesDetail,
+  onChangeDate, 
 }) => {
   const [dashboardTab, setDashboardTab] = useState<'매출현황' | '매출달력' | '상품' | '카테고리'>('매출현황');
   const [salesFilter, setSalesFilter] = useState<SalesFilter>('오늘');

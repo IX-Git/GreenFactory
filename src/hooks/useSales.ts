@@ -1,4 +1,4 @@
-// hooks/useSales.ts
+// src/hooks/useSales.ts
 import { useState, useMemo } from 'react';
 import { Order, SalesFilter, TooltipState } from '../types';
 
@@ -14,43 +14,68 @@ export const useSales = (completedOrders: Order[]) => {
     amount: 0,
   });
 
-  const getFilteredOrders = (): Order[] => {
-    if (salesFilter === '어제' || salesFilter === '오늘' || salesFilter === '직접 선택') {
-      const compareDate = new Date(selectedDate);
-      compareDate.setHours(0, 0, 0, 0);
-      return completedOrders.filter(order => {
-        const orderDate = new Date(order.timestamp);
-        orderDate.setHours(0, 0, 0, 0);
-        return orderDate.getTime() === compareDate.getTime();
-      });
-    } else if (salesFilter === '이번 주') {
-      const compareDate = new Date(selectedDate);
-      const day = compareDate.getDay();
-      const startOfWeek = new Date(compareDate);
-      startOfWeek.setDate(compareDate.getDate() - day);
-      startOfWeek.setHours(0, 0, 0, 0);
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-      endOfWeek.setHours(23, 59, 59, 999);
-      return completedOrders.filter(order => {
-        const orderDate = new Date(order.timestamp);
-        return orderDate >= startOfWeek && orderDate <= endOfWeek;
-      });
-    } else if (salesFilter === '이번 달') {
-      const compareDate = new Date(selectedDate);
-      const startOfMonth = new Date(compareDate.getFullYear(), compareDate.getMonth(), 1);
-      const endOfMonth = new Date(compareDate.getFullYear(), compareDate.getMonth() + 1, 0);
-      endOfMonth.setHours(23, 59, 59, 999);
-      return completedOrders.filter(order => {
-        const orderDate = new Date(order.timestamp);
-        return orderDate >= startOfMonth && orderDate <= endOfMonth;
+  // 1) 날짜·필터에 맞는 주문들 (useMemo 최적화)
+  const filteredOrders = useMemo(() => {
+    const now = new Date(selectedDate);
+    now.setHours(0, 0, 0, 0);
+
+    if (['어제','오늘','직접 선택'].includes(salesFilter)) {
+      return completedOrders.filter(o => {
+        const d = new Date(o.timestamp);
+        d.setHours(0,0,0,0);
+        return d.getTime() === now.getTime();
       });
     }
+
+    if (salesFilter === '이번 주') {
+      const day = now.getDay();
+      const start = new Date(now);
+      start.setDate(now.getDate() - day);
+      start.setHours(0,0,0,0);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23,59,59,999);
+      return completedOrders.filter(o => {
+        const d = new Date(o.timestamp);
+        return d >= start && d <= end;
+      });
+    }
+
+    if (salesFilter === '이번 달') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      end.setHours(23,59,59,999);
+      return completedOrders.filter(o => {
+        const d = new Date(o.timestamp);
+        return d >= start && d <= end;
+      });
+    }
+
     return [];
-  };
+  }, [completedOrders, salesFilter, selectedDate]);
 
-  const filteredOrders = getFilteredOrders();
+  // 2) 주문건(비지출) 개수
+  const orderCount = useMemo(
+    () => filteredOrders.filter(o => !o.isExpense).length,
+    [filteredOrders]
+  );
 
+  // 3) 상품별 주문건수 순위
+  const rankings = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredOrders
+      .filter(o => !o.isExpense)
+      .forEach(o => {
+        o.items.forEach(i => {
+          map.set(i.name, (map.get(i.name) || 0) + i.quantity);
+        });
+      });
+    return Array.from(map.entries())
+      .map(([name,count]) => ({ name, count }))
+      .sort((a,b) => b.count - a.count);
+  }, [filteredOrders]);
+
+  // 기존 todaySales, dashboardSales, etc...
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayOrders = completedOrders.filter(order => {
@@ -79,21 +104,6 @@ export const useSales = (completedOrders: Order[]) => {
 
   const dashboardProfit = dashboardSales - dashboardPurchases - dashboardOtherExpenses;
 
-  const getProductRankings = () => {
-    const productCounts = new Map();
-    filteredOrders
-      .filter(order => !order.isExpense)
-      .forEach(order => {
-        order.items.forEach(item => {
-          const currentCount = productCounts.get(item.name) || 0;
-          productCounts.set(item.name, currentCount + item.quantity);
-        });
-      });
-    return Array.from(productCounts.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  };
-
   const hourlySalesData = useMemo(() => {
     const data = Array.from({ length: 24 }, (_, index) => ({
       hour: index,
@@ -111,7 +121,6 @@ export const useSales = (completedOrders: Order[]) => {
   }, [filteredOrders]);
 
   const calculateInventoryRate = () => {
-    const filteredOrders = getFilteredOrders();
     if (filteredOrders.length === 0) return 0;
     const totalOrderedItems = filteredOrders
       .filter(order => !order.isExpense)
@@ -180,6 +189,8 @@ export const useSales = (completedOrders: Order[]) => {
     showDayDetailsModal,
     tooltip,
     filteredOrders,
+    orderCount,   // ← 추가
+    rankings,     // ← 추가
     todaySales,
     dashboardSales,
     headerSales,
@@ -192,8 +203,8 @@ export const useSales = (completedOrders: Order[]) => {
     setViewMode,
     setShowDayDetailsModal,
     setTooltip,
-    getFilteredOrders,
-    getProductRankings,
+    getFilteredOrders: () => filteredOrders, // 기존 함수는 filteredOrders로 대체
+    getProductRankings: () => rankings,      // rankings로 대체
     calculateInventoryRate,
     handleFilterChange,
     handleDateChange,

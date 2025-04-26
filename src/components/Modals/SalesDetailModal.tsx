@@ -1,4 +1,3 @@
-// src/components/Modals/SalesDetailModal.tsx
 import React, { useMemo } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
@@ -36,7 +35,6 @@ const SalesDetailModal: React.FC<SalesDetailModalProps> = ({
   onPrevDay,
   onNextDay,
 }) => {
-  // 데이터 집계
   const data: DailyFinancialData = useMemo(() => {
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
@@ -61,7 +59,9 @@ const SalesDetailModal: React.FC<SalesDetailModalProps> = ({
       };
     }
 
-    const salesOrders = dayOrders.filter(o => !o.isExpense);
+    const salesOrders = dayOrders.filter(
+      o => !o.isExpense && o.orderStatus !== '주문취소'
+    );
     const expenseOrders = dayOrders.filter(o => o.isExpense);
 
     const salesTotal = salesOrders.reduce((sum, o) => sum + (o.finalAmount || 0), 0);
@@ -85,7 +85,7 @@ const SalesDetailModal: React.FC<SalesDetailModalProps> = ({
     const orderCount = salesOrders.length;
     const orderUnitPrice = orderCount > 0 ? Math.round(salesTotal / orderCount) : 'N/A';
 
-    const inventoryRate = 'N/A'; // 실제 로직 필요 시 수정
+    const inventoryRate = 'N/A';
 
     return {
       date: format(date, 'yyyy-MM-dd'),
@@ -105,9 +105,19 @@ const SalesDetailModal: React.FC<SalesDetailModalProps> = ({
   }, [orders, date]);
 
   const fmt = (value: number | string): string =>
-    typeof value === 'number'
-      ? value.toLocaleString() + '원'
-      : value || 'N/A';
+    typeof value === 'number' ? value.toLocaleString() + '원' : value || 'N/A';
+
+  const selectedDateExpenses = useMemo(() => {
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    return orders
+      .filter(order => {
+        const d = new Date(order.timestamp);
+        d.setHours(0, 0, 0, 0);
+        return order.isExpense && d.getTime() === target.getTime();
+      })
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  }, [orders, date]);
 
   return (
     <>
@@ -169,9 +179,7 @@ const SalesDetailModal: React.FC<SalesDetailModalProps> = ({
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">주문 건수</span>
-                    <span>
-                      {typeof data.orderCount === 'number' ? data.orderCount : 'N/A'}건
-                    </span>
+                    <span>{typeof data.orderCount === 'number' ? data.orderCount : 'N/A'}건</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">건 단가</span>
@@ -193,16 +201,27 @@ const SalesDetailModal: React.FC<SalesDetailModalProps> = ({
                     <span>- {fmt(entry.amount)}</span>
                   </div>
                 ))}
+
+                {/* 클릭한 날짜의 기타지출 상세 목록 */}
+                <div className="space-y-2 mt-4">
+                  {selectedDateExpenses.map((expense, idx) => (
+                    <div key={idx} className="flex justify-between text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <span>{expense.memo || expense.items?.memo || ''}</span>
+                        <span className="text-xs text-gray-400">
+                          {format(new Date(expense.items?.timestamp ?? expense.timestamp), 'yyyy-MM-dd HH:mm:ss')}
+                        </span>
+                      </div>
+                      <span>{expense.finalAmount.toLocaleString()}원</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="pt-6 border-t border-gray-200">
                 <div className="flex justify-between items-center">
                   <span>재고 소진율</span>
-                  <span>
-                    {typeof data.inventoryRate === 'number'
-                      ? data.inventoryRate + '%'
-                      : 'N/A'}
-                  </span>
+                  <span>{typeof data.inventoryRate === 'number' ? data.inventoryRate + '%' : 'N/A'}</span>
                 </div>
               </div>
             </div>
