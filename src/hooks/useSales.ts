@@ -14,7 +14,7 @@ export const useSales = (completedOrders: Order[]) => {
     amount: 0,
   });
 
-  // 1) 날짜·필터에 맞는 주문들 (useMemo 최적화)
+  // 1) 날짜·필터에 맞는 주문
   const filteredOrders = useMemo(() => {
     const now = new Date(selectedDate);
     now.setHours(0, 0, 0, 0);
@@ -189,8 +189,8 @@ export const useSales = (completedOrders: Order[]) => {
     showDayDetailsModal,
     tooltip,
     filteredOrders,
-    orderCount,   // ← 추가
-    rankings,     // ← 추가
+    orderCount,   
+    rankings,   
     todaySales,
     dashboardSales,
     headerSales,
@@ -203,8 +203,8 @@ export const useSales = (completedOrders: Order[]) => {
     setViewMode,
     setShowDayDetailsModal,
     setTooltip,
-    getFilteredOrders: () => filteredOrders, // 기존 함수는 filteredOrders로 대체
-    getProductRankings: () => rankings,      // rankings로 대체
+    getFilteredOrders: () => filteredOrders, 
+    getProductRankings: () => rankings,     
     calculateInventoryRate,
     handleFilterChange,
     handleDateChange,

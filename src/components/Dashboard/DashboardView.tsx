@@ -26,8 +26,8 @@ interface DashboardViewProps {
   appUser: AppUser;
   currentTime: Date;
   showToastMessage: (msg: string) => void;
-  onShowSalesDetail: () => void; 
-  onChangeDate: React.Dispatch<React.SetStateAction<Date>>; 
+  onShowSalesDetail: () => void;
+  onChangeDate: React.Dispatch<React.SetStateAction<Date>>;
 }
 
 const DashboardView: React.FC<DashboardViewProps> = ({
@@ -35,7 +35,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   currentTime,
   showToastMessage,
   onShowSalesDetail,
-  onChangeDate, 
+  onChangeDate,
 }) => {
   const [dashboardTab, setDashboardTab] = useState<'매출현황' | '매출달력' | '상품' | '카테고리'>('매출현황');
   const [salesFilter, setSalesFilter] = useState<SalesFilter>('오늘');
@@ -117,9 +117,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   return (
-    <div className="flex flex-1">
+    <div className="flex flex-1 h-full overflow-hidden">
       {/* 사이드바 */}
-      <div className="w-64 bg-white border-r">
+      <aside className="w-64 bg-white border-r overflow-y-auto">
         <div className="p-4">
           <div className="font-medium mb-2">현황</div>
           <ul className="space-y-2">
@@ -154,14 +154,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             </li>
           </ul>
         </div>
-      </div>
+      </aside>
 
       {/* 메인 콘텐츠 */}
-      <div className={`flex-1 p-6 ${dashboardTab === '매출달력' ? 'calendar-container' : ''}`}>
+      <main className={`flex-1 p-6 overflow-y-auto h-full ${dashboardTab === '매출달력' ? 'calendar-container' : ''}`}>
         {/* 매출현황 */}
-        {dashboardTab === '매출현황' && (
-          <SalesOverview showToastMessage={showToastMessage} />
-        )}
+        {dashboardTab === '매출현황' && <SalesOverview showToastMessage={showToastMessage} />}
 
         {/* 매출달력 */}
         {dashboardTab === '매출달력' && (
@@ -205,15 +203,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         )}
 
         {/* 상품 관리 */}
-        {dashboardTab === '상품' && (
-          <ProductManagement showToastMessage={showToastMessage} />
-        )}
+        {dashboardTab === '상품' && <ProductManagement showToastMessage={showToastMessage} />}
 
         {/* 카테고리 관리 */}
-        {dashboardTab === '카테고리' && (
-          <CategoryManagement showToastMessage={showToastMessage} />
-        )}
-      </div>
+        {dashboardTab === '카테고리' && <CategoryManagement showToastMessage={showToastMessage} />}
+      </main>
     </div>
   );
 };

@@ -12,7 +12,7 @@ interface SalesCalendarProps {
   handleMonthButtonClick: () => void;
   handleYearButtonClick: () => void;
   handleMonthSelect: (year: number, month: number) => void;
-  completedOrders: any[]; // 실제 타입으로 교체 가능
+  completedOrders: any[]; 
   setSelectedDate: (date: Date) => void;
   setSalesFilter: (filter: SalesFilter) => void;
   openSalesDetailModal: (date: Date) => void;
@@ -97,7 +97,7 @@ const SalesCalendar: React.FC<SalesCalendarProps> = ({
       </div>
     )}
 
-    {/* Day 모드 (요청하신 코드 그대로) */}
+    {/* Day 모드 */}
     {viewMode === 'day' && (
       <div className="bg-white rounded-lg shadow p-6 calendar-wrapper">
         <div className="grid grid-cols-7 gap-4 calendar-header">

@@ -67,7 +67,6 @@ export const useProducts = () => {
       });
       setIsProductAddModalOpen(false);
     } catch (e) {
-      console.error("❌ 상품 추가 오류:", e);
     }
   };
 

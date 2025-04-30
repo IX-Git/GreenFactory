@@ -22,7 +22,6 @@ export const useAuth = () => {
           setAppUser({ 
             uid: user.uid, 
             role: snap.data().role,
-            // 1. users 컬렉션에서 email 필드가 있으면 우선 사용
             email: snap.data().email || user.email || undefined
           });
         } else {

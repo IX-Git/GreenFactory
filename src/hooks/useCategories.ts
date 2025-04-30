@@ -39,7 +39,6 @@ export const useCategories = () => {
     return productCategories
       .filter(cat => cat.enabled)
       .sort((a, b) => {
-        // 정렬 로직 (필요한 경우)
         return 0;
       });
   }, [productCategories]);

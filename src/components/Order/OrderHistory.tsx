@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 
 export interface OrderHistoryItemData {
-  id: string; // Firestore 문서 id
+  id: string;
   title: string;
   price: number;
   paymentMethod: string;
@@ -101,7 +101,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({
       <div className="flex-1 overflow-y-auto">
         {filteredOrders.map(o => (
           <OrderHistoryItem
-            key={o.id} // Firestore 문서 id
+            key={o.id} 
             {...o}
             selected={o.id === selectedOrderId}
             onSelect={() => onSelectOrder(o.id)}

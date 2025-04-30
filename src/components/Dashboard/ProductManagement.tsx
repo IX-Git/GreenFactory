@@ -32,8 +32,8 @@ interface MenuItem {
 }
 
 interface ProductManagementProps {
-    showToastMessage: (msg: string) => void;
-  }
+  showToastMessage: (msg: string) => void;
+}
 
 const ProductManagement: React.FC<ProductManagementProps> = ({ showToastMessage }) => {
   const [productCategories, setProductCategories] = useState<Category[]>([]);
@@ -137,7 +137,8 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ showToastMessage 
   };
 
   return (
-    <div className="max-w-7xl mx-auto mt-8 p-6 bg-white rounded-lg shadow">
+    <div className="max-w-7xl mx-auto mt-8">
+      {/* 상단: 상품 관리 워딩 & 상품 추가 버튼 (카드 바깥) */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold">상품 관리</h2>
         <button
@@ -157,40 +158,43 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ showToastMessage 
           상품 추가
         </button>
       </div>
-      {productCategories.filter(cat => cat.enabled).map(cat => {
-        const catItems = menuItems.filter(i => i.category === cat.name);
-        return (
-          <div key={cat.id} className="mb-6">
-            <h3 className="text-xl font-semibold mb-2">{cat.name}</h3>
-            {catItems.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">
-                해당 카테고리에 상품이 없습니다.
-              </div>
-            ) : (
-              catItems.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-4 border-b">
-                  <div className="flex-1">
-                    <span className="font-medium whitespace-nowrap">{item.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <button onClick={() => handleEditClickProduct(item)}>
-                      <Pencil className="text-gray-500 hover:text-blue-500" size={20} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedProduct(item);
-                        setIsProductDeleteModalOpen(true);
-                      }}
-                    >
-                      <Trash2 className="text-gray-500 hover:text-red-500" size={20} />
-                    </button>
-                  </div>
+      {/* 하얀색 카드 영역 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        {productCategories.filter(cat => cat.enabled).map(cat => {
+          const catItems = menuItems.filter(i => i.category === cat.name);
+          return (
+            <div key={cat.id} className="mb-6">
+              <h3 className="text-xl font-semibold mb-2">{cat.name}</h3>
+              {catItems.length === 0 ? (
+                <div className="text-center py-4 text-gray-500">
+                  해당 카테고리에 상품이 없습니다.
                 </div>
-              ))
-            )}
-          </div>
-        );
-      })}
+              ) : (
+                catItems.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-4 border-b">
+                    <div className="flex-1">
+                      <span className="font-medium whitespace-nowrap">{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => handleEditClickProduct(item)}>
+                        <Pencil className="text-gray-500 hover:text-blue-500" size={20} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedProduct(item);
+                          setIsProductDeleteModalOpen(true);
+                        }}
+                      >
+                        <Trash2 className="text-gray-500 hover:text-red-500" size={20} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {/* 상품 추가 모달 */}
       {isProductAddModalOpen && (

@@ -2,9 +2,8 @@
 import React from 'react';
 
 interface AvatarProps {
-  // OrderDetail에서 넘겨주는 대로 letter 프로퍼티 추가
   letter: string;
-  size?: number; // (선택) px 단위 크기
+  size?: number;
 }
 
 const Avatar: React.FC<AvatarProps> = ({ letter, size = 32 }) => {

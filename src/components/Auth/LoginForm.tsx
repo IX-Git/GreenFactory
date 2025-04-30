@@ -1,6 +1,6 @@
 import React, { useState, FormEvent } from 'react';
 
-//Button 컴포넌트
+//버튼
 const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ children, className = '', ...props }) => (
   <button
     className={`w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition ${className}`}
@@ -10,7 +10,7 @@ const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ child
   </button>
 );
 
-//InputField 컴포넌트
+//로그인 Input Field
 interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   id: string;
@@ -28,7 +28,7 @@ const InputField: React.FC<InputFieldProps> = ({ label, id, ...props }) => (
   </div>
 );
 
-// LoginForm 컴포넌트
+// LoginForm
 interface LoginFormProps {
   onLogin: (email: string, pw: string) => Promise<void>;
   errorMessage: string;

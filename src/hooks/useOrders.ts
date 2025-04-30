@@ -38,7 +38,7 @@ export const useOrders = (
       const orders: Order[] = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
-          id: doc.id, // Firestore 문서 id만 사용!
+          id: doc.id, 
           docId: doc.id,
           totalAmount: data.totalAmount,
           paymentMethod: data.paymentMethod,
@@ -121,7 +121,6 @@ export const useOrders = (
   const processOrder = async (paymentMethod: string) => {
     try {
       if (expenses.length > 0) {
-        // 지출이 있는 경우, 개별 memo를 포함하여 각각 저장
         await Promise.all(
           expenses.map(exp =>
             addDoc(collection(db, 'orders'), {
@@ -180,7 +179,6 @@ export const useOrders = (
       setDiscount(0);
       showToastMessage('주문이 완료되었습니다');
     } catch (error) {
-      console.error('❌ processOrder 에러:', error);
       showToastMessage('오류가 발생했습니다. 콘솔을 확인하세요.');
     }
   };
