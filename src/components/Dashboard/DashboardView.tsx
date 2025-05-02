@@ -6,6 +6,7 @@ import ProductManagement from './ProductManagement';
 import SalesOverview from './SalesOverview';
 import SalesCalendar from './SalesCalendar';
 import SalesDetailModal from '../Modals/SalesDetailModal';
+import InventoryManagement from './InventoryManagement'; // 재고관리 컴포넌트 추가
 import { db } from '../../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { AppUser, SalesFilter } from '../../types';
@@ -37,7 +38,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   onShowSalesDetail,
   onChangeDate,
 }) => {
-  const [dashboardTab, setDashboardTab] = useState<'매출현황' | '매출달력' | '상품' | '카테고리'>('매출현황');
+  const [dashboardTab, setDashboardTab] = useState<'매출현황' | '매출달력' | '상품' | '카테고리' | '재고관리'>('매출현황');
   const [salesFilter, setSalesFilter] = useState<SalesFilter>('오늘');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'year'>('day');
@@ -150,6 +151,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   카테고리
                 </li>
+                <li
+                  className={`cursor-pointer ${dashboardTab === '재고관리' ? 'text-blue-600' : 'text-gray-600'}`}
+                  onClick={() => setDashboardTab('재고관리')}
+                >
+                  재고관리
+                </li>
               </ul>
             </li>
           </ul>
@@ -207,6 +214,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* 카테고리 관리 */}
         {dashboardTab === '카테고리' && <CategoryManagement showToastMessage={showToastMessage} />}
+
+        {/* 재고 관리 */}
+        {dashboardTab === '재고관리' && <InventoryManagement />}
       </main>
     </div>
   );
