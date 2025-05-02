@@ -79,16 +79,6 @@ const OrderView: React.FC<OrderViewProps> = ({
     }
   }, [displayedCategories, initializedCategory]);
 
-  // 현재 카테고리에 상품이 없으면 첫 번째 카테고리로 변경
-  useEffect(() => {
-    if (displayedCategories.length === 0) return;
-    const hasInCurrent = menuItems.some(item => item.category === activeCategory);
-    if (!hasInCurrent) {
-      setActiveCategory(displayedCategories[0].name);
-      setCurrentPage(1);
-    }
-  }, [displayedCategories, menuItems, activeCategory]);
-
   return (
     <div className="flex flex-1">
       {/* 왼쪽 메뉴 영역 */}

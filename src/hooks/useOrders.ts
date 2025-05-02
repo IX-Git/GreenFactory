@@ -152,7 +152,7 @@ export const useOrders = (
 
       const ref = await addDoc(collection(db, 'orders'), {
         items: orderItems.map(i => ({
-          id: i.id,
+          id: String(menuItems.find(m => m.id === i.id)?.docId),
           name: i.name,
           price: i.salesPrice,
           quantity: i.quantity,

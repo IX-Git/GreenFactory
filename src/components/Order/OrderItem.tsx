@@ -21,7 +21,6 @@ const OrderItem: React.FC<OrderItemProps> = ({ item, addToOrder, disabled }) => 
     >
       {/* 상품명 */}
       <div className="font-medium mb-2 text-left">{item.name}</div>
-      
       {/* 가로 재고 바 */}
       <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mt-auto mb-1">
         <div
@@ -31,12 +30,10 @@ const OrderItem: React.FC<OrderItemProps> = ({ item, addToOrder, disabled }) => 
           }}
         />
       </div>
-      
       {/* 남은 재고 개수 */}
       <div className="text-xs text-gray-500 mb-1">
         {item.remainingStock}개 남음
       </div>
-      
       {/* 가격 */}
       <div className="font-bold text-blue-600">
         {(item.salesPrice ?? 0).toLocaleString()}원

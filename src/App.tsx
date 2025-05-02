@@ -178,6 +178,7 @@ const App: React.FC = () => {
                   changeLogs={selectedOrder.changeLogs ?? []}
                   appUser={appUser}
                   items={selectedOrder.items.map(i => ({
+                    id: String (i.id),
                     name: i.name,
                     quantity: i.quantity,
                     price: i.price * i.quantity,

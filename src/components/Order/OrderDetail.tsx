@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Avatar from '../Common/Avatar';
 import PaymentMethodModal from '../Modals/PaymentMethodModal';
 import CancelOrderModal from '../Modals/CancelOrderModal';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { format } from 'date-fns';
@@ -25,7 +25,7 @@ interface OrderDetailProps {
   orderNumber: string;
   orderDate: string;
   orderStatus: string;
-  items: Array<{ name: string; quantity: number; price: number }>;
+  items: Array<{ id: string;name: string; quantity: number; price: number }>;
   discount?: number;
   orderId?: string; // Firestore 문서 id (for update)
   showToastMessage?: (msg: string) => void;
@@ -70,22 +70,39 @@ const OrderDetail: React.FC<OrderDetailProps> = ({
     if (showToastMessage) showToastMessage('결제수단이 변경되었습니다.');
   };
 
-  // 주문 취소 처리
   const handleCancelOrder = async (reason: string) => {
     if (!orderId) return;
-    await updateDoc(doc(db, 'orders', orderId), {
-      orderStatus: '주문취소',
-      cancelReason: reason,
-      changeLogs: arrayUnion({
-        type: "주문취소",
-        reason,
-        updatedAt: new Date().toISOString(),
-        updatedBy: appUser?.email || "unknown"
-      })
-    });
-    setShowCancelModal(false);
-    if (showToastMessage) showToastMessage('주문이 취소되었습니다.');
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        orderStatus: '주문취소',
+        cancelReason: reason,
+        changeLogs: arrayUnion({
+          type: "주문취소",
+          reason,
+          updatedAt: new Date().toISOString(),
+          updatedBy: appUser?.email || "unknown"
+        })
+      });
+  
+      await Promise.all(items.map(item => {
+        if (item.id) {
+          const menuItemRef = doc(db, 'menuItems', item.id);
+          return updateDoc(menuItemRef, {
+            remainingStock: increment(item.quantity)
+          });
+        }
+        return Promise.resolve();
+      }));
+  
+      if (showToastMessage) showToastMessage('주문이 취소되었습니다.');
+    } catch (e) {
+      if (showToastMessage) showToastMessage('주문 취소 중 오류가 발생했습니다.');
+    } finally {
+      setShowCancelModal(false);
+    }
   };
+  
+
 
   return (
     <div className="h-full overflow-y-auto">
