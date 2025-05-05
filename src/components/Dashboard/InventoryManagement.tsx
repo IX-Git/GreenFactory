@@ -1,73 +1,138 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Filter, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import InventoryTable from './InventoryTable';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { InventoryRecord } from '../../types/inventory';
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  stock: number;
-}
+import { useProducts } from '../../hooks/useProducts';
+import { MenuItem } from '../../types';
 
 const InventoryManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [records, setRecords] = useState<InventoryRecord[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<MenuItem | null>(null);
   const [filterType, setFilterType] = useState<string>('입출고');
   const [showAdjustModal, setShowAdjustModal] = useState(false);
-  const [dateRange, setDateRange] = useState('2025-05-01(목) ~ 2025-05-08(목)');
+  const [dateRange, setDateRange] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [currentDateRange, setCurrentDateRange] = useState<{
+    start: Date;
+    end: Date;
+  }>({
+    start: new Date(),
+    end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  });
   const [sortType, setSortType] = useState<'latest' | 'low' | 'high'>('latest');
-
-  // 상품 데이터 불러오기
+  
+  // 날짜 포맷 함수
+  const formatDateRange = (start: Date, end: Date) => {
+    const formatDate = (date: Date) => {
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      const dayOfWeek = days[date.getDay()];
+      return `${date.getFullYear()}-${month}-${day}(${dayOfWeek})`;
+    };
+    return `${formatDate(start)} ~ ${formatDate(end)}`;
+  };
+  
+  // 컴포넌트 마운트 시 날짜 범위 초기화
   useEffect(() => {
-    const q = query(collection(db, 'products'), orderBy('name'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let productData: Product[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data() as Omit<Product, 'id'>
-      }));
-      // 정렬
-      if (sortType === 'low') {
-        productData = [...productData].sort((a, b) => a.stock - b.stock);
-      } else if (sortType === 'high') {
-        productData = [...productData].sort((a, b) => b.stock - a.stock);
-      }
-      setProducts(productData);
-      if (productData.length > 0 && !selectedProduct) {
-        setSelectedProduct(productData[0]);
-      }
-    });
-    return () => unsubscribe();
-    // eslint-disable-next-line
-  }, [sortType]);
+    const today = new Date();
+    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    setCurrentDateRange({ start: today, end: nextWeek });
+    setDateRange(formatDateRange(today, nextWeek));
+  }, []);
+  
+  // 날짜 범위 변경 함수
+  const handleDateRangeChange = (newRange: { start: Date; end: Date }) => {
+    setCurrentDateRange(newRange);
+    setDateRange(formatDateRange(newRange.start, newRange.end));
+    setShowDatePicker(false);
+  };
+
+  const moveWeek = (direction: 'next' | 'prev') => {
+    const { start, end } = currentDateRange;
+    const days = 7 * 24 * 60 * 60 * 1000;
+    
+    if (direction === 'next') {
+      const newStart = new Date(start.getTime() + days);
+      const newEnd = new Date(end.getTime() + days);
+      setCurrentDateRange({ start: newStart, end: newEnd });
+      setDateRange(formatDateRange(newStart, newEnd));
+    } else {
+      const newStart = new Date(start.getTime() - days);
+      const newEnd = new Date(end.getTime() - days);
+      setCurrentDateRange({ start: newStart, end: newEnd });
+      setDateRange(formatDateRange(newStart, newEnd));
+    }
+  };
+  
+  // useProducts 훅 사용
+  const { menuItems } = useProducts();
+  
+  // 정렬된 상품 목록 계산
+  const sortedProducts = React.useMemo(() => {
+    let sorted = [...menuItems];
+    if (sortType === 'low') {
+      return sorted.sort((a, b) => (a.remainingStock || 0) - (b.remainingStock || 0));
+    } else if (sortType === 'high') {
+      return sorted.sort((a, b) => (b.remainingStock || 0) - (a.remainingStock || 0));
+    }
+    return sorted;
+  }, [menuItems, sortType]);
+  
+  // 초기 선택 상품 설정
+  useEffect(() => {
+    if (sortedProducts.length > 0 && !selectedProduct) {
+      setSelectedProduct(sortedProducts[0]);
+    }
+  }, [sortedProducts, selectedProduct]);
 
   // 선택된 상품의 재고 기록 불러오기
   useEffect(() => {
     if (!selectedProduct) return;
+    console.log('선택된 상품:', selectedProduct);
+    
     let q = query(
       collection(db, 'inventory'),
       orderBy('timestamp', 'desc')
     );
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log('Snapshot received:', snapshot.docs.length);
+      
       const inventoryData: InventoryRecord[] = snapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data() as Omit<InventoryRecord, 'id'>
-        }))
-        .filter(record => {
-          if (filterType !== '입출고') {
-            return record.type === filterType;
-          }
-          return true;
+        .map(doc => {
+          const data = doc.data();
+          // Firestore 타임스탬프를 문자열로 변환
+          const timestamp = data.timestamp && typeof data.timestamp.toDate === 'function' 
+            ? data.timestamp.toDate().toLocaleString() 
+            : new Date().toLocaleString();
+          
+          return {
+            id: doc.id,
+            productId: data.productId,
+            productName: data.productName,
+            type: data.type,
+            reason: data.reason,
+            adjustment: data.adjustment,
+            afterStock: data.afterStock,
+            timestamp: timestamp
+          };
         })
-        .filter(record => record.productId === selectedProduct.id);
+        .filter(record => {
+          console.log('필터링 비교:', record.productId, selectedProduct.docId);
+          if (filterType !== '입출고') {
+            return record.type === filterType && record.productId === selectedProduct.docId;
+          }
+          return record.productId === selectedProduct.docId;
+        });
+      
+      console.log('필터링된 데이터:', inventoryData);
       setRecords(inventoryData);
     });
+    
     return () => unsubscribe();
   }, [selectedProduct, filterType]);
 
@@ -75,7 +140,7 @@ const InventoryManagement: React.FC = () => {
     setCurrentPage(page);
   };
 
-  const handleProductSelect = (product: Product) => {
+  const handleProductSelect = (product: MenuItem) => {
     setSelectedProduct(product);
   };
 
@@ -84,16 +149,26 @@ const InventoryManagement: React.FC = () => {
   };
 
   const handleAdjustStock = async (params: { mode: 'add' | 'subtract', amount: number, reason: string }) => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || !selectedProduct.docId) {
+      console.error('선택된 상품이 없거나 docId가 없습니다');
+      return;
+    }
+    
     const { mode, amount, reason } = params;
     const adjustment = mode === 'add' ? amount : -amount;
-    const newStock = selectedProduct.stock + adjustment;
+    const newStock = (selectedProduct.remainingStock || 0) + adjustment;
+    
     try {
-      await updateDoc(doc(db, 'products', selectedProduct.id), {
-        stock: newStock
+      console.log('재고 조정 시작:', selectedProduct.docId, newStock);
+      
+      // 메뉴 아이템 업데이트
+      await updateDoc(doc(db, 'menuItems', selectedProduct.docId), {
+        remainingStock: newStock
       });
-      await addDoc(collection(db, 'inventory'), {
-        productId: selectedProduct.id,
+      
+      // 인벤토리 기록 추가
+      const inventoryRef = await addDoc(collection(db, 'inventory'), {
+        productId: selectedProduct.docId,
         productName: selectedProduct.name,
         type: mode === 'add' ? '입고' : '출고',
         reason: reason,
@@ -101,16 +176,18 @@ const InventoryManagement: React.FC = () => {
         afterStock: newStock,
         timestamp: Timestamp.now()
       });
+      
+      console.log('인벤토리 기록 추가됨:', inventoryRef.id);
       setShowAdjustModal(false);
     } catch (error) {
-      console.error('Error adjusting stock:', error);
+      console.error('재고 조정 오류:', error);
     }
   };
-
+  
   return (
-    <div className="flex h-full">
+    <div className="flex h-full bg-white">
       {/* 중간: 상품 목록/정렬 */}
-      <section className="w-80 border-r bg-white flex flex-col">
+      <section className="w-80 border-r bg-white flex flex-col overflow-y-auto">
         <div className="px-6 py-4 border-b">
           <div className="text-xs text-gray-400 mb-1">상품 관리 / 재고관리</div>
           <h1 className="text-xl font-bold mb-4">재고관리</h1>
@@ -129,7 +206,7 @@ const InventoryManagement: React.FC = () => {
             >재고 많은순</button>
           </div>
           <div>
-            {products.map(product => (
+            {sortedProducts.map(product => (
               <div
                 key={product.id}
                 className={`flex justify-between items-center px-4 py-3 rounded cursor-pointer mb-2 ${selectedProduct?.id === product.id ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}
@@ -137,9 +214,11 @@ const InventoryManagement: React.FC = () => {
               >
                 <div>
                   <div className="font-medium">{product.name}</div>
-                  <div className="text-xs text-gray-500">{product.category} | {product.price.toLocaleString()}원</div>
+                  <div className="text-xs text-gray-500">
+                    {product.category} | {(product.salesPrice || 0).toLocaleString()}원
+                  </div>
                 </div>
-                <div className="font-bold">{product.stock}개</div>
+                <div className="font-bold">{product.remainingStock || 0}개</div>
               </div>
             ))}
           </div>
@@ -147,14 +226,42 @@ const InventoryManagement: React.FC = () => {
       </section>
 
       {/* 우측: 상세/테이블/필터/수량조정 */}
-      <main className="flex-1 bg-white">
-        <div className="flex items-center gap-2 px-6 py-4 border-b">
+      <main className="flex-1 bg-white overflow-auto">
+        <div className="flex items-center gap-2 px-6 py-4 border-b bg-white">
           <div className="font-bold text-lg">{selectedProduct?.name}</div>
-          <div className="text-gray-500 ml-2">재고: {selectedProduct?.stock ?? 0}개</div>
+          <div className="text-gray-500 ml-2">재고: {selectedProduct?.remainingStock ?? 0}개</div>
           <div className="flex-1" />
-          <div className="flex items-center border rounded px-3 py-2 bg-white text-gray-700 text-sm">
-            {dateRange}
+          <div className="flex items-center border rounded px-3 py-2 bg-white text-gray-700 text-sm cursor-pointer relative">
+            <button 
+              className="p-1 hover:bg-gray-100 rounded-full mr-1"
+              onClick={() => moveWeek('prev')}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div onClick={() => setShowDatePicker(true)}>
+              {dateRange}
+            </div>
+            <button 
+              className="p-1 hover:bg-gray-100 rounded-full ml-1"
+              onClick={() => moveWeek('next')}
+            >
+              <ChevronRight size={16} />
+            </button>
             <Filter size={18} className="ml-2 text-gray-500" />
+            
+            {showDatePicker && (
+              <div className="absolute top-full left-0 mt-1 bg-white shadow-lg rounded-md z-10 p-4">
+                {/* 여기에 날짜 선택 컴포넌트 추가 */}
+                <div className="flex justify-end mt-2">
+                  <button 
+                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
+                    onClick={() => setShowDatePicker(false)}
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <select
             className="border rounded px-4 py-2 bg-white text-gray-700 ml-2 text-sm"
@@ -173,25 +280,26 @@ const InventoryManagement: React.FC = () => {
             수량 조정하기
           </button>
         </div>
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 bg-white">
           <InventoryTable records={records} />
-          <div className="flex justify-center mt-4">
+          <div className="flex justify-center mt-4 bg-white">
             {[1, 2, 3, 4, 5].map(page => (
               <button
                 key={page}
                 className={`w-8 h-8 mx-1 rounded ${currentPage === page ? 'bg-blue-100 text-blue-600 border border-blue-300' : 'text-gray-700 hover:bg-gray-100'}`}
-                onClick={() => setCurrentPage(page)}
+                onClick={() => handlePageChange(page)}
               >
                 {page}
               </button>
             ))}
           </div>
         </div>
+        
         {/* 수량 조정 모달 */}
         {showAdjustModal && selectedProduct && (
           <InventoryAdjustModal
             open={showAdjustModal}
-            currentStock={selectedProduct.stock}
+            currentStock={selectedProduct.remainingStock || 0}
             onClose={() => setShowAdjustModal(false)}
             onSubmit={handleAdjustStock}
           />
@@ -200,8 +308,6 @@ const InventoryManagement: React.FC = () => {
     </div>
   );
 };
-
-// 수량 조정 모달 컴포넌트는 이전과 동일하게 포함
 
 interface InventoryAdjustModalProps {
   open: boolean;
