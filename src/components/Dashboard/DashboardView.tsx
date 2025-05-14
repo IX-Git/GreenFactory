@@ -6,7 +6,7 @@ import ProductManagement from './ProductManagement';
 import SalesOverview from './SalesOverview';
 import SalesCalendar from './SalesCalendar';
 import SalesDetailModal from '../Modals/SalesDetailModal';
-import InventoryManagement from './InventoryManagement'; // 재고관리 컴포넌트 추가
+import InventoryManagement from './InventoryManagement'; 
 import { db } from '../../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { AppUser, SalesFilter } from '../../types';

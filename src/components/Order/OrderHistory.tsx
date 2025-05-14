@@ -8,6 +8,7 @@ export interface OrderHistoryItemData {
   date: string;
   time: string;
   status: string;
+  totalItems: number;
 }
 
 export interface OrderHistoryProps {
@@ -31,6 +32,7 @@ const OrderHistoryItem: React.FC<OrderHistoryItemProps> = ({
   date,
   time,
   status,
+  totalItems,
   selected,
   onSelect,
 }) => {
@@ -43,7 +45,7 @@ const OrderHistoryItem: React.FC<OrderHistoryItemProps> = ({
       `}
     >
       <div className="flex flex-col">
-        <div className="font-medium">{title}</div>
+        <div className="font-medium">{title} <span className="text-gray-500">총 {totalItems}건</span></div>
         <div className="text-sm text-gray-500">{paymentMethod}</div>
         <div className="text-sm text-gray-500">{date} {time}</div>
       </div>
@@ -56,6 +58,7 @@ const OrderHistoryItem: React.FC<OrderHistoryItemProps> = ({
     </div>
   );
 };
+
 
 const OrderHistory: React.FC<OrderHistoryProps> = ({
   orders,

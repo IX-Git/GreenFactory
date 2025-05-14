@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Avatar from '../Common/Avatar';
 import PaymentMethodModal from '../Modals/PaymentMethodModal';
 import CancelOrderModal from '../Modals/CancelOrderModal';
-import { doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, increment, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { format } from 'date-fns';
@@ -84,11 +84,32 @@ const OrderDetail: React.FC<OrderDetailProps> = ({
         })
       });
   
-      await Promise.all(items.map(item => {
+      await Promise.all(items.map(async item => {
         if (item.id) {
           const menuItemRef = doc(db, 'menuItems', item.id);
-          return updateDoc(menuItemRef, {
-            remainingStock: increment(item.quantity)
+          
+          // 현재 재고 가져오기
+          const menuItemDoc = await getDoc(menuItemRef);
+          if (!menuItemDoc.exists()) return Promise.resolve();
+          
+          const currentStock = menuItemDoc.data().remainingStock || 0;
+          const newStock = currentStock + (item.quantity || 0);
+          
+          // 재고 업데이트
+          await updateDoc(menuItemRef, {
+            remainingStock: newStock
+          });
+          
+          // 재고 변동 기록 추가
+          await addDoc(collection(db, 'inventory'), {
+            productId: item.id,
+            productName: item.name,
+            type: '입고',
+            reason: '주문 취소',
+            adjustment: item.quantity || 0,
+            afterStock: newStock,
+            timestamp: serverTimestamp(),
+            orderId: orderId
           });
         }
         return Promise.resolve();
@@ -102,7 +123,6 @@ const OrderDetail: React.FC<OrderDetailProps> = ({
     }
   };
   
-
 
   return (
     <div className="h-full overflow-y-auto">
@@ -179,21 +199,26 @@ const OrderDetail: React.FC<OrderDetailProps> = ({
             </div>
           </div>
 
-          <div>
-            <h3 className="font-medium mb-4">주문내역</h3>
-            <div className="space-y-4">
-              {items.map((item, index) => (
-                <div key={index} className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-800">{item.name} ({(item.price / item.quantity).toLocaleString()}원)</span>
-                  <span className="font-medium">{item.price.toLocaleString()}</span>
-                </div>
-              ))}
-              <div className="flex justify-between py-2 border-b border-gray-100 text-red-500">
-                <span>할인</span>
-                <span>(-) {(discount ?? 0).toLocaleString()}원</span>
-              </div>
-            </div>
-          </div>
+<div>
+  <h3 className="font-medium mb-4">주문내역</h3>
+  <div className="space-y-4">
+    {items.map((item, index) => (
+      <div key={index} className="flex justify-between py-2 border-b border-gray-100">
+        <span className="text-gray-800">{item.name} ({(item.price / item.quantity).toLocaleString()}원) x {item.quantity}개</span>
+        <span className="font-medium">{item.price.toLocaleString()}</span>
+      </div>
+    ))}
+    <div className="flex justify-between py-2 border-b border-gray-100 text-red-500">
+      <span>할인</span>
+      <span>(-) {(discount ?? 0).toLocaleString()}원</span>
+    </div>
+    <div className="flex justify-between py-2 border-b border-gray-100">
+      <span className="font-medium">총 수량</span>
+      <span className="font-medium">{items.reduce((sum, item) => sum + item.quantity, 0)}개</span>
+    </div>
+  </div>
+</div>
+
 
           {/* 주문변경내역 */}
           <div>

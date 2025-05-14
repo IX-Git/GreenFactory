@@ -1,11 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import InventoryTable from './InventoryTable';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, Timestamp, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { InventoryRecord } from '../../types/inventory';
-import { useProducts } from '../../hooks/useProducts';
 import { MenuItem } from '../../types';
+import { useProducts } from '../../hooks/useProducts';
+
+// InventoryRecord 타입 정의
+interface InventoryRecord {
+  id: string;
+  productId: string;
+  productName: string;
+  type: string;
+  reason: string;
+  adjustment: number;
+  afterStock: number;
+  timestamp: string;
+  orderId?: string;
+}
 
 const InventoryManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -69,42 +81,67 @@ const InventoryManagement: React.FC = () => {
   };
   
   // useProducts 훅 사용
-  const { menuItems } = useProducts();
+  const { menuItems, getSortedProducts } = useProducts();
   
   // 정렬된 상품 목록 계산
   const sortedProducts = React.useMemo(() => {
-    let sorted = [...menuItems];
-    if (sortType === 'low') {
-      return sorted.sort((a, b) => (a.remainingStock || 0) - (b.remainingStock || 0));
-    } else if (sortType === 'high') {
-      return sorted.sort((a, b) => (b.remainingStock || 0) - (a.remainingStock || 0));
-    }
-    return sorted;
-  }, [menuItems, sortType]);
+    // getSortedProducts 함수 사용
+    return getSortedProducts(sortType);
+  }, [menuItems, sortType, getSortedProducts]);
   
   // 초기 선택 상품 설정
   useEffect(() => {
     if (sortedProducts.length > 0 && !selectedProduct) {
+      const savedProductId = localStorage.getItem('selectedProductId');
+      if (savedProductId) {
+        const product = sortedProducts.find(p => p.docId === savedProductId);
+        if (product) {
+          setSelectedProduct(product);
+          return;
+        }
+      }
       setSelectedProduct(sortedProducts[0]);
     }
   }, [sortedProducts, selectedProduct]);
+  
 
   // 선택된 상품의 재고 기록 불러오기
-  useEffect(() => {
-    if (!selectedProduct) return;
-    console.log('선택된 상품:', selectedProduct);
-    
-    let q = query(
+useEffect(() => {
+  if (!selectedProduct?.docId) {
+    console.log('선택된 상품이 없거나 docId가 없습니다');
+    return;
+  }
+  
+  console.log('선택된 상품:', selectedProduct);
+  
+  // 시작 날짜와 종료 날짜 설정
+  const startDate = new Date(currentDateRange.start);
+  startDate.setHours(0, 0, 0, 0);
+  
+  const endDate = new Date(currentDateRange.end);
+  endDate.setHours(23, 59, 59, 999);
+  
+  // Firestore 타임스탬프로 변환
+  const startTimestamp = Timestamp.fromDate(startDate);
+  const endTimestamp = Timestamp.fromDate(endDate);
+  
+  try {
+    // 단순화된 쿼리로 변경하여 디버깅
+    const q = query(
       collection(db, 'inventory'),
+      where('productId', '==', selectedProduct.docId),
       orderBy('timestamp', 'desc')
     );
     
+    console.log('쿼리 생성됨:', q);
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       console.log('Snapshot received:', snapshot.docs.length);
-      
       const inventoryData: InventoryRecord[] = snapshot.docs
         .map(doc => {
           const data = doc.data();
+          console.log('문서 데이터:', data);
+          
           // Firestore 타임스탬프를 문자열로 변환
           const timestamp = data.timestamp && typeof data.timestamp.toDate === 'function' 
             ? data.timestamp.toDate().toLocaleString() 
@@ -113,28 +150,47 @@ const InventoryManagement: React.FC = () => {
           return {
             id: doc.id,
             productId: data.productId,
-            productName: data.productName,
+            productName: data.productName || selectedProduct.name,
             type: data.type,
             reason: data.reason,
             adjustment: data.adjustment,
             afterStock: data.afterStock,
-            timestamp: timestamp
+            timestamp: timestamp,
+            orderId: data.orderId
           };
         })
+        // 클라이언트 측에서 필터링 수행
         .filter(record => {
-          console.log('필터링 비교:', record.productId, selectedProduct.docId);
-          if (filterType !== '입출고') {
-            return record.type === filterType && record.productId === selectedProduct.docId;
+          // 날짜 필터링
+          if (record.timestamp) {
+            const recordDate = new Date(record.timestamp);
+            if (recordDate < startDate || recordDate > endDate) {
+              return false;
+            }
           }
-          return record.productId === selectedProduct.docId;
+          
+          // 타입 필터링
+          if (filterType !== '입출고' && record.type !== filterType) {
+            return false;
+          }
+          
+          return true;
         });
       
       console.log('필터링된 데이터:', inventoryData);
       setRecords(inventoryData);
+    }, (error) => {
+      console.error('재고 기록 조회 중 오류:', error);
+      setRecords([]);
     });
     
     return () => unsubscribe();
-  }, [selectedProduct, filterType]);
+  } catch (error) {
+    console.error('쿼리 생성 중 오류:', error);
+    setRecords([]);
+  }
+}, [selectedProduct, filterType, currentDateRange]);
+
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -142,7 +198,10 @@ const InventoryManagement: React.FC = () => {
 
   const handleProductSelect = (product: MenuItem) => {
     setSelectedProduct(product);
-  };
+  if (product?.docId) {
+    localStorage.setItem('selectedProductId', product.docId);
+  }
+};
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFilterType(e.target.value);
@@ -156,7 +215,7 @@ const InventoryManagement: React.FC = () => {
     
     const { mode, amount, reason } = params;
     const adjustment = mode === 'add' ? amount : -amount;
-    const newStock = (selectedProduct.remainingStock || 0) + adjustment;
+    const newStock = Math.max(0, (selectedProduct.remainingStock || 0) + adjustment);
     
     try {
       console.log('재고 조정 시작:', selectedProduct.docId, newStock);

@@ -25,6 +25,7 @@ interface HistoryOrder {
   time: string;
   status: string;
   paymentMethod: string;
+  totalItems: number; // totalItems 필드 추가
 }
 
 const ROLE_TABS: Record<string, Array<'주문' | '주문내역' | '현황'>> = {
@@ -64,19 +65,24 @@ const App: React.FC = () => {
 
   const historyItems = useMemo<HistoryOrder[]>(() => {
     return orderHistoryOrders.map(o => {
+      // 각 주문의 모든 상품 수량 합산
+      const totalItems = o.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      
       let title = '';
       if (o.items.length === 1) {
-        title = `${o.items[0]?.name || '상품'}/총 1건`;
+        title = `${o.items[0]?.name || '상품'}`;
       } else if (o.items.length > 1) {
-        title = `${o.items[0]?.name || '상품'} 등/총 ${o.items.length}건`;
+        title = `${o.items[0]?.name || '상품'} 등`;
       } else {
-        title = `주문/총 0건`;
+        title = `주문`;
       }
+      
       let status = o.orderStatus === '주문취소'
         ? '주문취소'
         : o.isExpense
           ? '지출'
           : '완료';
+          
       return {
         id: o.id,
         title,
@@ -85,9 +91,11 @@ const App: React.FC = () => {
         time: format(o.timestamp, 'HH:mm:ss'),
         status,
         paymentMethod: o.paymentMethod,
+        totalItems // 합산된 상품 개수 추가
       };
     });
-  }, [orderHistoryOrders]);  
+  }, [orderHistoryOrders]);
+  
   
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
@@ -95,9 +103,9 @@ const App: React.FC = () => {
     if (historyItems.length === 0) {
       setSelectedOrderId(null);
     } else if (!historyItems.some(item => item.id === selectedOrderId)) {
-      setSelectedOrderId(historyItems[0].id);
+      setSelectedOrderId(historyItems[0]?.id || null);
     }
-  }, [historyItems]);
+  }, [historyItems, selectedOrderId]);
 
   const selectedOrder = useMemo(
     () => orderHistoryOrders.find(o => o.id === selectedOrderId) || null,
@@ -178,7 +186,7 @@ const App: React.FC = () => {
                   changeLogs={selectedOrder.changeLogs ?? []}
                   appUser={appUser}
                   items={selectedOrder.items.map(i => ({
-                    id: String (i.id),
+                    id: String(i.id),
                     name: i.name,
                     quantity: i.quantity,
                     price: i.price * i.quantity,

@@ -1,15 +1,16 @@
-// src/hooks/useOrders.ts
 import { useState, useEffect, useMemo } from 'react';
 import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  doc,
-  serverTimestamp,
-  increment
+  collection, 
+  query, 
+  orderBy, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  serverTimestamp, 
+  increment,
+  Timestamp,
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Order, MenuItem, Expense } from '../types';
@@ -150,9 +151,10 @@ export const useOrders = (
         0
       );
 
-      const ref = await addDoc(collection(db, 'orders'), {
+      // 주문 문서 추가
+      const orderRef = await addDoc(collection(db, 'orders'), {
         items: orderItems.map(i => ({
-          id: String(menuItems.find(m => m.id === i.id)?.docId),
+          id: i.docId, // docId를 사용
           name: i.name,
           price: i.salesPrice,
           quantity: i.quantity,
@@ -165,12 +167,37 @@ export const useOrders = (
         purchaseTotal,
       });
 
+      // 각 상품의 재고 감소 및 재고 변동 기록 추가
       await Promise.all(
-        orderItems.map(item => {
+        orderItems.map(async (item) => {
           if (!item.docId) return Promise.resolve();
+          
+          // 메뉴 아이템 문서 참조
           const itemRef = doc(db, 'menuItems', item.docId);
-          return updateDoc(itemRef, {
-            remainingStock: increment(-(item.quantity || 0)),
+          
+          // 현재 재고 가져오기
+          const itemDoc = await getDoc(itemRef);
+          if (!itemDoc.exists()) return Promise.resolve();
+          
+          const itemData = itemDoc.data();
+          const currentStock = itemData.remainingStock || 0;
+          const newStock = Math.max(0, currentStock - (item.quantity || 0));
+          
+          // 재고 업데이트
+          await updateDoc(itemRef, {
+            remainingStock: newStock
+          });
+          
+          // 재고 변동 기록 추가
+          await addDoc(collection(db, 'inventory'), {
+            productId: item.docId,
+            productName: item.name,
+            type: '출고',
+            reason: '주문',
+            adjustment: -(item.quantity || 0),
+            afterStock: newStock,
+            timestamp: Timestamp.now(),
+            orderId: orderRef.id
           });
         })
       );
@@ -179,6 +206,72 @@ export const useOrders = (
       setDiscount(0);
       showToastMessage('주문이 완료되었습니다');
     } catch (error) {
+      console.error('주문 처리 중 오류:', error);
+      showToastMessage('오류가 발생했습니다. 콘솔을 확인하세요.');
+    }
+  };
+
+  // 주문 취소 함수 추가
+  const cancelOrder = async (order: Order) => {
+    try {
+      if (!order.id) {
+        showToastMessage('주문 ID가 없습니다');
+        return;
+      }
+      
+      // 주문 상태 업데이트
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, {
+        orderStatus: '주문취소',
+        changeLogs: [
+          ...(order.changeLogs || []),
+          {
+            type: '주문취소',
+            updatedAt: new Date().toISOString(),
+            updatedBy: '시스템',
+            reason: '사용자 요청'
+          }
+        ]
+      });
+      
+      // 각 상품의 재고 증가 및 재고 변동 기록 추가
+      await Promise.all(
+        order.items.map(async (item) => {
+          if (!item.id) return Promise.resolve();
+          
+          // 메뉴 아이템 문서 참조 - 문자열로 변환
+          const itemRef = doc(db, 'menuItems', String(item.id));
+          
+          // 현재 메뉴 아이템 정보 가져오기
+          const itemDoc = await getDoc(itemRef);
+          if (!itemDoc.exists()) return Promise.resolve();
+          
+          const itemData = itemDoc.data();
+          const currentStock = itemData.remainingStock || 0;
+          const newStock = currentStock + (item.quantity || 0);
+          
+          // 재고 업데이트
+          await updateDoc(itemRef, {
+            remainingStock: newStock
+          });
+          
+          // 재고 변동 기록 추가
+          await addDoc(collection(db, 'inventory'), {
+            productId: String(item.id),
+            productName: item.name,
+            type: '입고',
+            reason: '주문 취소',
+            adjustment: item.quantity || 0,
+            afterStock: newStock,
+            timestamp: Timestamp.now(),
+            orderId: order.id
+          });
+        })
+      );
+      
+      showToastMessage('주문이 취소되었습니다');
+    } catch (error) {
+      console.error('주문 취소 중 오류:', error);
       showToastMessage('오류가 발생했습니다. 콘솔을 확인하세요.');
     }
   };
@@ -218,6 +311,7 @@ export const useOrders = (
     updateQuantity,
     removeOrderItem,
     processOrder,
+    cancelOrder, // 주문 취소 함수 추가
     subtotal,
     total,
     totalExpenses,
